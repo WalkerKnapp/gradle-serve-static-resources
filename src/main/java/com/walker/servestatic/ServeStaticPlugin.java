@@ -11,7 +11,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 public class ServeStaticPlugin implements Plugin<Project> {
     @Override
     public void apply(Project project) {
-        ServeStaticExtension extension = project.getExtensions().create("web", ServeStaticExtension.class);
+        ServeStaticExtension extension = project.getExtensions().create("web", ServeStaticExtension.class, project);
 
         project.getPlugins().apply("java-library");
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);

@@ -5,6 +5,15 @@ plugins {
 group 'com.walker'
 version '1.0'
 
+gradlePlugin {
+    plugins {
+        serveStatic {
+            id = 'com.walker.serve-static-resources'
+            implementationClass = 'com.walker.servestatic.ServeStaticPlugin'
+        }
+    }
+}
+
 repositories {
     mavenCentral()
 }
