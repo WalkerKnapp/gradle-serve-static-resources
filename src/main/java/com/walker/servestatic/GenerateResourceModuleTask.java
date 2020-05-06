@@ -9,9 +9,11 @@ import org.gradle.api.tasks.TaskAction;
 import java.io.File;
 
 
-public class GenerateResourceModulesTask extends DefaultTask {
+public class GenerateResourceModuleTask extends DefaultTask {
     private FileCollection webResources;
     private File generatedDirectory;
+    private String name;
+    private String[] encodings;
 
     @InputFiles
     public FileCollection getWebResources() {
@@ -31,8 +33,34 @@ public class GenerateResourceModulesTask extends DefaultTask {
         this.generatedDirectory = generatedDirectory;
     }
 
+    public String getNameProp() {
+        return name;
+    }
+
+    public void setName(String name) {
+        this.name = name;
+    }
+
+    public String[] getEncodings() {
+        return encodings;
+    }
+
+    public void setEncodings(String[] encodings) {
+        this.encodings = encodings;
+    }
+
     @TaskAction
     public void generateSources() {
+        System.out.println("Generating " + name);
+        /*File generatedDirectoryPackage = new File(generatedDirectory, "servestatic/generated");
 
+        if(generatedDirectoryPackage.exists()) {
+            generatedDirectoryPackage.delete();
+        }
+        generatedDirectoryPackage.mkdirs();
+
+        webResources.forEach(file -> {
+
+        });*/
     }
 }
