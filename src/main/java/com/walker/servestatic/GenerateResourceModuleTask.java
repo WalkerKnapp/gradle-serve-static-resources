@@ -14,6 +14,7 @@ import io.vertx.core.AsyncResult;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
 import io.vertx.core.http.HttpMethod;
+import io.vertx.core.http.HttpServerResponse;
 import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import org.gradle.api.*;
@@ -26,12 +27,16 @@ import org.gradle.internal.impldep.org.mozilla.javascript.ast.NewExpression;
 import org.gradle.internal.impldep.org.mozilla.javascript.ast.VariableDeclaration;
 
 import javax.annotation.processing.Generated;
+import javax.imageio.plugins.bmp.BMPImageWriteParam;
 import java.io.File;
 import java.io.IOException;
+import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicReference;
 
 
 public class GenerateResourceModuleTask extends DefaultTask {
@@ -103,6 +108,11 @@ public class GenerateResourceModuleTask extends DefaultTask {
             filename = filename.substring(0, index) + filename.substring(index + 1, index + 2).toUpperCase() + filename.substring(index + 2);
         }
         return filename.replace("@", "");
+    }
+
+    private String filenameToWriteResponseMethodName(String filename) {
+        String bufferName = filenameToBufferName(filename);
+        return "write" + bufferName.substring(0, 1).toUpperCase() + bufferName.substring(1) + "Response";
     }
 
     private MethodDeclaration generateLoadClasspathResourceToBufferMethod(CompilationUnit moduleCompilationUnit, ClassOrInterfaceDeclaration moduleClass) {
@@ -216,6 +226,90 @@ public class GenerateResourceModuleTask extends DefaultTask {
                     ),
                     AssignExpr.Operator.ASSIGN
             ));
+        });
+
+        // Extension -> Uncompressed path -> Serve Method
+        HashMap<String, HashMap<Path, MethodDeclaration>> serveMethodMap = new HashMap<>();
+
+        resourcesMap.forEach((extension, resources) -> {
+            resources.forEach((uncompressedPath, fileEncodings) -> {
+                MethodDeclaration writeMethod = moduleClass
+                        .addMethod(filenameToWriteResponseMethodName(uncompressedPath.getFileName().toString()))
+                        .addModifier(Modifier.PUBLIC, Modifier.STATIC);
+                Parameter resultResponse = writeMethod.addAndGetParameter(HttpServerResponse.class, "result");
+                Parameter acceptEncoding = writeMethod.addAndGetParameter(String.class, "acceptEncoding");
+
+                String mimeType;
+                try {
+                    mimeType = Files.probeContentType(uncompressedPath);
+                } catch (IOException e) {
+                    throw new IllegalStateException(e);
+                }
+
+                AtomicReference<BlockStmt> serveResponseBlock = new AtomicReference<>(new BlockStmt()
+                        .addStatement(new MethodCallExpr(
+                                new MethodCallExpr(
+                                        resultResponse.getNameAsExpression(),
+                                        "putHeader",
+                                        new NodeList<>(
+                                                new FieldAccessExpr(
+                                                        JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                        "CONTENT_TYPE"),
+                                                new StringLiteralExpr(mimeType)
+                                        )
+                                ),
+                                "end",
+                                new NodeList<>(fileEncodings.get(""))
+                        )));
+
+                this.encodings.stream().sorted(Collections.reverseOrder())
+                        .forEach(enc -> {
+                            if (fileEncodings.containsKey(enc)) {
+                                // Create new layer for if tree with new content encoding
+                                IfStmt ifLayer = new IfStmt()
+                                        .setCondition(new MethodCallExpr(
+                                                acceptEncoding.getNameAsExpression(),
+                                                "contains",
+                                                new NodeList<>(new StringLiteralExpr(enc))
+                                        ))
+                                        .setElseStmt(serveResponseBlock.get())
+                                        .setThenStmt(new BlockStmt()
+                                                .addStatement(
+                                                        new MethodCallExpr(
+                                                                new MethodCallExpr(
+                                                                        new MethodCallExpr(
+                                                                                resultResponse.getNameAsExpression(),
+                                                                                "putHeader",
+                                                                                new NodeList<>(
+                                                                                        new FieldAccessExpr(
+                                                                                                JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                                                                "CONTENT_TYPE"
+                                                                                        ),
+                                                                                        new StringLiteralExpr(mimeType)
+                                                                                )
+                                                                        ),
+                                                                        "putHeader",
+                                                                        new NodeList<>(
+                                                                                new FieldAccessExpr(
+                                                                                        JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                                                        "CONTENT_ENCODING"
+                                                                                ),
+                                                                                new StringLiteralExpr(enc)
+                                                                        )
+                                                                ),
+                                                                "end",
+                                                                new NodeList<>(fileEncodings.get(enc))
+                                                        )
+                                                ));
+                                serveResponseBlock.set(ifLayer.asBlockStmt());
+                            }
+                        });
+
+                writeMethod.setBody(new BlockStmt().addStatement(serveResponseBlock.get()));
+
+                serveMethodMap.computeIfAbsent(extension, ext -> new HashMap<>())
+                        .put(uncompressedPath, writeMethod);
+            });
         });
     }
 }
