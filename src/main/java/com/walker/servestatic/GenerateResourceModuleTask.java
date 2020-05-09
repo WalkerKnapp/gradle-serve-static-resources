@@ -10,6 +10,7 @@ import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
+import com.google.errorprone.annotations.Var;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
@@ -23,16 +24,12 @@ import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
-import org.gradle.internal.impldep.org.mozilla.javascript.ast.NewExpression;
-import org.gradle.internal.impldep.org.mozilla.javascript.ast.VariableDeclaration;
 
 import javax.annotation.processing.Generated;
-import javax.imageio.plugins.bmp.BMPImageWriteParam;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -311,5 +308,144 @@ public class GenerateResourceModuleTask extends DefaultTask {
                         .put(uncompressedPath, writeMethod);
             });
         });
+
+        // Setup addRoutes method
+        MethodDeclaration addRoutes = moduleClass.addMethod("addRoutes")
+                .addModifier(Modifier.PUBLIC, Modifier.STATIC)
+                .setType(Router.class);
+        Parameter addRoutesRouter = addRoutes.addAndGetParameter(Router.class, "router");
+        Parameter addRoutesBaseUrl = addRoutes.addAndGetParameter(String.class, "baseUrl");
+        Parameter addRoutesExtensions = addRoutes.addAndGetParameter(String.class, "extensions").setVarArgs(true);
+
+        ForeachStmt addRoutesForeach = new ForeachStmt()
+                .setVariable(new VariableDeclarationExpr(JavaParser.parseClassOrInterfaceType("String"), "ext"))
+                .setIterable(addRoutesExtensions.getNameAsExpression());
+        SwitchStmt addRoutesSwitch = addRoutes.createBody()
+                .addAndGetStatement(addRoutesForeach).asForeachStmt()
+                .createBlockStatementAsBody()
+                .addAndGetStatement(new SwitchStmt()).asSwitchStmt()
+                .setSelector(addRoutesForeach.getVariable().getVariable(0).getNameAsExpression());
+
+        // Setup serverPushResources method
+        MethodDeclaration serverPush = moduleClass.addMethod("serverPushResources")
+                .addModifier(Modifier.PUBLIC, Modifier.STATIC);
+        Parameter serverPushResponse = serverPush.addAndGetParameter(HttpServerResponse.class, "response");
+        Parameter serverPushAcceptEncoding = serverPush.addAndGetParameter(String.class, "acceptEncoding");
+        Parameter serverPushBaseUrl = serverPush.addAndGetParameter(String.class, "baseUrl");
+        Parameter serverPushExtensions = serverPush.addAndGetParameter(String.class, "extensions").setVarArgs(true);
+
+        ForeachStmt serverPushForeach = new ForeachStmt()
+                .setVariable(new VariableDeclarationExpr(JavaParser.parseClassOrInterfaceType("String"), "ext"))
+                .setIterable(serverPushExtensions.getNameAsExpression());
+        SwitchStmt serverPushSwitch = serverPush.createBody()
+                .addAndGetStatement(serverPushForeach).asForeachStmt()
+                .createBlockStatementAsBody()
+                .addAndGetStatement(new SwitchStmt()).asSwitchStmt()
+                .setSelector(serverPushForeach.getVariable().getVariable(0).getNameAsExpression());
+
+        // Fill content for addRoutes and serverPush
+        serveMethodMap.forEach((extension, resources) -> {
+            SwitchEntryStmt addRoutesSwitchEntry = new SwitchEntryStmt()
+                    .setLabel(new StringLiteralExpr(extension));
+            SwitchEntryStmt serverPushSwitchEntry = new SwitchEntryStmt()
+                    .setLabel(new StringLiteralExpr(extension));
+
+            resources.forEach((uncompressedPath, serveMethod) -> {
+                String relativeUncompressed = moduleDirectory.toPath().relativize(uncompressedPath).toString().replace('\\', '/');
+
+                // Generate addRoutes entry
+                BinaryExpr addRoutesFullUrlExpr = new BinaryExpr(addRoutesBaseUrl.getNameAsExpression(), new StringLiteralExpr(relativeUncompressed), BinaryExpr.Operator.PLUS);
+
+                Parameter contextParameter = new Parameter(JavaParser.parseClassOrInterfaceType("RoutingContext"), "context");
+                VariableDeclarationExpr acceptEncodingDeclr = new VariableDeclarationExpr(
+                        new VariableDeclarator(
+                                JavaParser.parseClassOrInterfaceType("String"),
+                                "acceptEncoding",
+                                new MethodCallExpr(
+                                        contextParameter.getNameAsExpression(),
+                                        "getHeader",
+                                        new NodeList<>(
+                                                new FieldAccessExpr(
+                                                        JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                        "ACCEPT_ENCODING"
+                                                )
+                                        )
+                                )
+                        )
+                );
+
+                LambdaExpr addRoutesHandlerLambda = new LambdaExpr()
+                        .setParameters(new NodeList<>(contextParameter))
+                        .setEnclosingParameters(true)
+                        .setBody(new BlockStmt()
+                        .addStatement(acceptEncodingDeclr)
+                        .addStatement(new MethodCallExpr(
+                                moduleClass.getNameAsExpression(),
+                                serveMethod.getName(),
+                                new NodeList<>(
+                                        new MethodCallExpr(
+                                                contextParameter.getNameAsExpression(),
+                                                "response"
+                                        ),
+                                        acceptEncodingDeclr.getVariable(0).getNameAsExpression()
+                                )
+                        )));
+
+                addRoutesSwitchEntry.addAndGetStatement(new ExpressionStmt(
+                        new MethodCallExpr(
+                                new MethodCallExpr(
+                                        addRoutesRouter.getNameAsExpression(),
+                                        "route",
+                                        new NodeList<>(addRoutesFullUrlExpr)
+                                ),
+                                "handler",
+                                new NodeList<>(addRoutesHandlerLambda)
+                        )
+                ));
+
+                // Generate serverPush Entry
+                BinaryExpr serverPushFullUrlExpression = new BinaryExpr(serverPushBaseUrl.getNameAsExpression(), new StringLiteralExpr(relativeUncompressed), BinaryExpr.Operator.PLUS);
+                Parameter asyncResultParam = new Parameter(new ClassOrInterfaceType().setName(new SimpleName("AyncResult")).setTypeArguments(JavaParser.parseClassOrInterfaceType("HttpServerResponse")), "ar");
+
+                LambdaExpr serverPushHandlerLambda = new LambdaExpr()
+                        .setParameters(new NodeList<>(asyncResultParam))
+                        .setEnclosingParameters(true)
+                        .setBody(new BlockStmt()
+                                .addAndGetStatement(new IfStmt()).asIfStmt()
+                                .setCondition(new MethodCallExpr(asyncResultParam.getNameAsExpression(), "succeeded"))
+                                .setThenStmt(new BlockStmt()).getThenStmt().asBlockStmt()
+                                .addStatement(new MethodCallExpr(
+                                        moduleClass.getNameAsExpression(),
+                                        serveMethod.getName(),
+                                        new NodeList<>(
+                                                new MethodCallExpr(asyncResultParam.getNameAsExpression(), "result"),
+                                                serverPushAcceptEncoding.getNameAsExpression()
+                                        )
+                                )));
+
+                serverPushSwitchEntry.addAndGetStatement(new MethodCallExpr(
+                        serverPushResponse.getNameAsExpression(),
+                        "push",
+                        new NodeList<>(
+                                new FieldAccessExpr(
+                                        JavaParser.parseClassOrInterfaceType("HttpMethod").getNameAsExpression(),
+                                        "GET"
+                                ),
+                                serverPushFullUrlExpression,
+                                serverPushHandlerLambda
+                        )
+                ));
+            });
+
+            addRoutesSwitchEntry.addStatement(new BreakStmt().removeLabel());
+            serverPushSwitchEntry.addStatement(new BreakStmt().removeLabel());
+
+            addRoutesSwitch.getEntries().add(addRoutesSwitchEntry);
+            serverPushSwitch.getEntries().add(serverPushSwitchEntry);
+        });
+
+        addRoutes.getBody().orElseThrow(AssertionError::new).addStatement(new ReturnStmt(addRoutesRouter.getNameAsExpression()));
+
+        moduleCompilationUnit.getStorage().ifPresent(CompilationUnit.Storage::save);
     }
 }
