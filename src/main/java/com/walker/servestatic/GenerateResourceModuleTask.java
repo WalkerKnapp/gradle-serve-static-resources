@@ -4,15 +4,9 @@ import com.github.javaparser.JavaParser;
 import com.github.javaparser.ast.CompilationUnit;
 import com.github.javaparser.ast.Modifier;
 import com.github.javaparser.ast.NodeList;
-import com.github.javaparser.ast.body.ClassOrInterfaceDeclaration;
-import com.github.javaparser.ast.body.MethodDeclaration;
-import com.github.javaparser.ast.body.Parameter;
-import com.github.javaparser.ast.body.VariableDeclarator;
+import com.github.javaparser.ast.body.*;
 import com.github.javaparser.ast.expr.*;
-import com.github.javaparser.ast.stmt.CatchClause;
-import com.github.javaparser.ast.stmt.ReturnStmt;
-import com.github.javaparser.ast.stmt.ThrowStmt;
-import com.github.javaparser.ast.stmt.TryStmt;
+import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
@@ -24,6 +18,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import org.gradle.api.*;
 import org.gradle.api.file.FileCollection;
+import org.gradle.api.tasks.InputDirectory;
 import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
@@ -34,14 +29,18 @@ import javax.annotation.processing.Generated;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Path;
+import java.util.ArrayList;
+import java.util.HashMap;
+import java.util.List;
 
 
 public class GenerateResourceModuleTask extends DefaultTask {
     private FileCollection webResources;
     private File packageDirectory;
+    private File moduleDirectory;
     private String sourcePackage;
     private String name;
-    private String[] encodings;
+    private List<String> encodings;
 
     @InputFiles
     public FileCollection getWebResources() {
@@ -61,6 +60,15 @@ public class GenerateResourceModuleTask extends DefaultTask {
         this.packageDirectory = packageDirectory;
     }
 
+    @InputDirectory
+    public File getModuleDirectory() {
+        return moduleDirectory;
+    }
+
+    public void setModuleDirectory(File moduleDirectory) {
+        this.moduleDirectory = moduleDirectory;
+    }
+
     public String getNameProp() {
         return name;
     }
@@ -77,16 +85,24 @@ public class GenerateResourceModuleTask extends DefaultTask {
         this.sourcePackage = sourcePackage;
     }
 
-    public String[] getEncodings() {
+    public List<String> getEncodings() {
         return encodings;
     }
 
-    public void setEncodings(String[] encodings) {
+    public void setEncodings(List<String> encodings) {
         this.encodings = encodings;
     }
 
     private String generatedClassName() {
         return name.substring(0, 1).toUpperCase() + name.substring(1) + "Module";
+    }
+
+    private String filenameToBufferName(String filename) {
+        int index;
+        while((index = filename.indexOf('.')) != 1 || (index = filename.indexOf('-')) != -1) {
+            filename = filename.substring(0, index) + filename.substring(index + 1, index + 2).toUpperCase() + filename.substring(index + 2);
+        }
+        return filename.replace("@", "");
     }
 
     private MethodDeclaration generateLoadClasspathResourceToBufferMethod(CompilationUnit moduleCompilationUnit, ClassOrInterfaceDeclaration moduleClass) {
@@ -162,11 +178,44 @@ public class GenerateResourceModuleTask extends DefaultTask {
                 .addSingleMemberAnnotation(Generated.class, "\"serve-static-resources\"")
                 .setJavadocComment("Generated class to serve static files from the " + name + " web module.");
 
-        generateLoadClasspathResourceToBufferMethod(moduleCompilationUnit, moduleClass);
+        MethodDeclaration loadResourceMethod = generateLoadClasspathResourceToBufferMethod(moduleCompilationUnit, moduleClass);
+        BlockStmt staticInitializer = moduleClass.addStaticInitializer();
 
+        // Extension -> Uncompressed filepath -> Encoding -> Buffer Name
+        HashMap<String, HashMap<Path, HashMap<String, NameExpr>>> resourcesMap = new HashMap<>();
 
         webResources.forEach(file -> {
+            String resourceName = file.getName();
+            String encoding = encodings.stream().filter(enc -> file.getName().endsWith(enc)).findFirst().orElse("");
 
+            // Get the raw filepath and extension
+            Path uncompressedFilepath = file.toPath();
+            if(!encoding.isEmpty()) {
+                uncompressedFilepath = uncompressedFilepath.getParent()
+                        .resolve(resourceName.substring(0, resourceName.length() - (encoding.length() + 1)));
+            }
+            String rawFilename = uncompressedFilepath.getFileName().toString();
+            String rawExtension = rawFilename.substring(rawFilename.indexOf('.') + 1);
+
+            // Add field to the class to store a buffer
+            String fieldName = filenameToBufferName(resourceName);
+            FieldDeclaration field = moduleClass.addField(Buffer.class, fieldName, Modifier.PUBLIC, Modifier.STATIC);
+
+            // Add file to the resources map, to later use in the addRoutes() method
+            resourcesMap.computeIfAbsent(rawExtension, ext -> new HashMap<>())
+                    .computeIfAbsent(uncompressedFilepath, path -> new HashMap<>())
+                    .put(encoding, field.getVariable(0).getNameAsExpression());
+
+            // Add the file loading to the static initializer
+            staticInitializer.addStatement(new AssignExpr(
+                    field.getVariable(0).getNameAsExpression(),
+                    new MethodCallExpr(
+                            null,
+                            loadResourceMethod.getName(),
+                            new NodeList<>(new StringLiteralExpr(moduleDirectory.toPath().relativize(file.toPath()).toString().replace('\\', '/')))
+                    ),
+                    AssignExpr.Operator.ASSIGN
+            ));
         });
     }
 }

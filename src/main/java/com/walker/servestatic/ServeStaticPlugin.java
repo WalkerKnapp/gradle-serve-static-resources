@@ -10,6 +10,7 @@ import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
 
 import java.util.ArrayList;
+import java.util.List;
 
 public class ServeStaticPlugin implements Plugin<Project> {
     @Override
@@ -21,6 +22,7 @@ public class ServeStaticPlugin implements Plugin<Project> {
         SourceSet mainSources = sourceSets.getByName("main");
 
         mainSources.getAllJava().srcDir(extension.generatedSourcesDirectory);
+        mainSources.getResources().srcDir(extension.moduleDirectory);
 
         ArrayList<TaskProvider<GenerateResourceModuleTask>> generateTasks = new ArrayList<>();
 
@@ -29,9 +31,10 @@ public class ServeStaticPlugin implements Plugin<Project> {
                         GenerateResourceModuleTask.class, moduleTask -> {
                             moduleTask.setName(webModule.getName());
                             moduleTask.setSourcePackage(extension.sourcePackage.get());
+                            moduleTask.setModuleDirectory(extension.moduleDirectory.get());
                             moduleTask.setPackageDirectory(extension.generatedSourcesDirectory.get());
                             moduleTask.setWebResources(webModule.getModuleFiles().get());
-                            moduleTask.setEncodings(extension.contentEncodings.get());
+                            moduleTask.setEncodings(List.of(extension.contentEncodings.get()));
                         })));
 
         project.getTasks().register("generateWebModules").configure(task -> {
