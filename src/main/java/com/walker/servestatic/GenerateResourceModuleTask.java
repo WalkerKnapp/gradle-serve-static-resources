@@ -10,7 +10,6 @@ import com.github.javaparser.ast.stmt.*;
 import com.github.javaparser.ast.type.ArrayType;
 import com.github.javaparser.ast.type.ClassOrInterfaceType;
 import com.github.javaparser.ast.type.PrimitiveType;
-import com.google.errorprone.annotations.Var;
 import io.vertx.core.AsyncResult;
 import io.vertx.core.buffer.Buffer;
 import io.vertx.core.http.HttpHeaders;
@@ -112,7 +111,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         return "write" + bufferName.substring(0, 1).toUpperCase() + bufferName.substring(1) + "Response";
     }
 
-    private MethodDeclaration generateLoadClasspathResourceToBufferMethod(CompilationUnit moduleCompilationUnit, ClassOrInterfaceDeclaration moduleClass) {
+    private MethodDeclaration generateLoadClasspathResourceToBufferMethod(ClassOrInterfaceDeclaration moduleClass) {
         MethodDeclaration method = moduleClass.addMethod("loadClasspathResourceToBuffer", Modifier.PRIVATE, Modifier.STATIC)
                 .setType(Buffer.class);
 
@@ -185,7 +184,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                 .addSingleMemberAnnotation(Generated.class, "\"serve-static-resources\"")
                 .setJavadocComment("Generated class to serve static files from the " + name + " web module.");
 
-        MethodDeclaration loadResourceMethod = generateLoadClasspathResourceToBufferMethod(moduleCompilationUnit, moduleClass);
+        MethodDeclaration loadResourceMethod = generateLoadClasspathResourceToBufferMethod(moduleClass);
         BlockStmt staticInitializer = moduleClass.addStaticInitializer();
 
         // Extension -> Uncompressed filepath -> Encoding -> Buffer Name
