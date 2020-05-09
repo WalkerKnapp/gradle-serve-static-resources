@@ -7,6 +7,9 @@ import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
+import org.gradle.api.tasks.TaskProvider;
+
+import java.util.ArrayList;
 
 public class ServeStaticPlugin implements Plugin<Project> {
     @Override
@@ -19,15 +22,28 @@ public class ServeStaticPlugin implements Plugin<Project> {
 
         mainSources.getAllJava().srcDir(extension.generatedSourcesDirectory);
 
-        project.getTasks().getByPath("compileJava")
-                .dependsOn(project.getTasks().register("generateWebModules", task ->
-                        extension.modules.forEach(webModule ->
-                                task.dependsOn(project.getTasks().register("generate" + webModule.getName() + "WebModule",
-                                        GenerateResourceModuleTask.class, moduleTask -> {
-                                            moduleTask.setName(webModule.getName());
-                                            moduleTask.setGeneratedDirectory(extension.generatedSourcesDirectory.get());
-                                            moduleTask.setWebResources(webModule.getModuleFiles().get());
-                                            moduleTask.setEncodings(extension.contentEncodings.get());
-                                        })))));
+        ArrayList<TaskProvider<GenerateResourceModuleTask>> generateTasks = new ArrayList<>();
+
+        extension.modules.all(webModule ->
+                generateTasks.add(project.getTasks().register("generate" + webModule.getName() + "WebModule",
+                        GenerateResourceModuleTask.class, moduleTask -> {
+                            moduleTask.setName(webModule.getName());
+                            moduleTask.setSourcePackage(extension.sourcePackage.get());
+                            moduleTask.setPackageDirectory(extension.generatedSourcesDirectory.get());
+                            moduleTask.setWebResources(webModule.getModuleFiles().get());
+                            moduleTask.setEncodings(extension.contentEncodings.get());
+                        })));
+
+        project.getTasks().register("generateWebModules").configure(task -> {
+            task.doFirst(t -> {
+
+            });
+
+            for(TaskProvider<GenerateResourceModuleTask> tp : generateTasks) {
+                task.dependsOn(tp.get());
+            }
+
+            project.getTasks().getByName("compileJava").dependsOn(task);
+        });
     }
 }
