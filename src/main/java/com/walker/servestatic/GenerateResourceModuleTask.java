@@ -100,7 +100,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
 
     private String filenameToBufferName(String filename) {
         int index;
-        while((index = filename.indexOf('.')) != 1 || (index = filename.indexOf('-')) != -1) {
+        while((index = filename.indexOf('.')) != -1 || (index = filename.indexOf('-')) != -1) {
             filename = filename.substring(0, index) + filename.substring(index + 1, index + 2).toUpperCase() + filename.substring(index + 2);
         }
         return filename.replace("@", "");
@@ -151,7 +151,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         catchClause.createBody().addStatement(new ThrowStmt(
                 new ObjectCreationExpr(
                         null,
-                        JavaParser.parseClassOrInterfaceType("IOException"),
+                        JavaParser.parseClassOrInterfaceType("IllegalStateException"),
                         new NodeList<>(new BinaryExpr(new StringLiteralExpr("Failed to load resource from classpath: "), pathParam.getNameAsExpression(), BinaryExpr.Operator.PLUS),
                                 ioExceptionParam.getNameAsExpression())
                 )
@@ -201,7 +201,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                         .resolve(resourceName.substring(0, resourceName.length() - (encoding.length() + 1)));
             }
             String rawFilename = uncompressedFilepath.getFileName().toString();
-            String rawExtension = rawFilename.substring(rawFilename.indexOf('.') + 1);
+            String rawExtension = rawFilename.substring(rawFilename.lastIndexOf('.') + 1);
 
             // Add field to the class to store a buffer
             String fieldName = filenameToBufferName(resourceName);
@@ -235,14 +235,19 @@ public class GenerateResourceModuleTask extends DefaultTask {
                 Parameter resultResponse = writeMethod.addAndGetParameter(HttpServerResponse.class, "result");
                 Parameter acceptEncoding = writeMethod.addAndGetParameter(String.class, "acceptEncoding");
 
-                String mimeType;
+                AtomicReference<String> mimeType = new AtomicReference<>();
                 try {
-                    mimeType = Files.probeContentType(uncompressedPath);
+                    mimeType.set(Files.probeContentType(uncompressedPath));
                 } catch (IOException e) {
                     throw new IllegalStateException(e);
                 }
 
-                AtomicReference<BlockStmt> serveResponseBlock = new AtomicReference<>(new BlockStmt()
+                // Special case for mjs, since #probeContentType doesn't recognize them.
+                if(extension.equalsIgnoreCase("mjs")) {
+                    mimeType.compareAndSet(null, "text/javascript");
+                }
+
+                AtomicReference<Statement> serveResponseBlock = new AtomicReference<>(new BlockStmt()
                         .addStatement(new MethodCallExpr(
                                 new MethodCallExpr(
                                         resultResponse.getNameAsExpression(),
@@ -251,7 +256,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                                                 new FieldAccessExpr(
                                                         JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
                                                         "CONTENT_TYPE"),
-                                                new StringLiteralExpr(mimeType)
+                                                new StringLiteralExpr(mimeType.get())
                                         )
                                 ),
                                 "end",
@@ -281,7 +286,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                                                                                                 JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
                                                                                                 "CONTENT_TYPE"
                                                                                         ),
-                                                                                        new StringLiteralExpr(mimeType)
+                                                                                        new StringLiteralExpr(mimeType.get())
                                                                                 )
                                                                         ),
                                                                         "putHeader",
@@ -297,7 +302,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                                                                 new NodeList<>(fileEncodings.get(enc))
                                                         )
                                                 ));
-                                serveResponseBlock.set(ifLayer.asBlockStmt());
+                                serveResponseBlock.set(ifLayer);
                             }
                         });
 
