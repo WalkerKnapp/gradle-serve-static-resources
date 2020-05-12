@@ -29,6 +29,10 @@ public class ServeStaticPlugin implements Plugin<Project> {
         extension.modules.all(webModule ->
                 generateTasks.add(project.getTasks().register("generate" + webModule.getName() + "WebModule",
                         GenerateResourceModuleTask.class, moduleTask -> {
+                            for(Task genTask : extension.getWebGenTasks().get()) {
+                                moduleTask.dependsOn(genTask);
+                            }
+
                             moduleTask.setName(webModule.getName());
                             moduleTask.setSourcePackage(extension.sourcePackage.get());
                             moduleTask.setModuleDirectory(extension.moduleDirectory.get());
@@ -38,10 +42,6 @@ public class ServeStaticPlugin implements Plugin<Project> {
                         })));
 
         project.getTasks().register("generateWebModules").configure(task -> {
-            task.doFirst(t -> {
-
-            });
-
             for(TaskProvider<GenerateResourceModuleTask> tp : generateTasks) {
                 task.dependsOn(tp.get());
             }
