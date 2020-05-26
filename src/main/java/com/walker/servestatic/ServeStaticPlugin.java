@@ -8,7 +8,9 @@ import org.gradle.api.Task;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
+import org.gradle.internal.impldep.org.apache.ivy.core.repository.RepositoryManagementEngine;
 
+import java.io.File;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -20,6 +22,9 @@ public class ServeStaticPlugin implements Plugin<Project> {
         project.getPlugins().apply("java-library");
         SourceSetContainer sourceSets = project.getExtensions().getByType(SourceSetContainer.class);
         SourceSet mainSources = sourceSets.getByName("main");
+
+        project.getRepositories().addLast(project.getRepositories().mavenCentral());
+        project.getDependencies().add("implementation", "io.vertx:vertx-web:3.4.2");
 
         mainSources.getAllJava().srcDir(extension.generatedSourcesDirectory);
         mainSources.getResources().srcDir(extension.moduleDirectory);
@@ -36,7 +41,11 @@ public class ServeStaticPlugin implements Plugin<Project> {
                             moduleTask.setName(webModule.getName());
                             moduleTask.setSourcePackage(extension.sourcePackage.get());
                             moduleTask.setModuleDirectory(extension.moduleDirectory.get());
-                            moduleTask.setPackageDirectory(extension.generatedSourcesDirectory.get());
+                            File packageDir = extension.generatedSourcesDirectory.get();
+                            for(String part : extension.sourcePackage.get().split("\\.")) {
+                                packageDir = new File(packageDir, part);
+                            }
+                            moduleTask.setPackageDirectory(packageDir);
                             moduleTask.setWebResources(webModule.getModuleFiles().get());
                             moduleTask.setEncodings(List.of(extension.contentEncodings.get()));
                         })));

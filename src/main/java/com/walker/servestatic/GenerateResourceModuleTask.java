@@ -126,7 +126,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
                                 new MethodCallExpr(
                                         new MethodCallExpr(
                                                 new MethodCallExpr(
-                                                        new ClassExpr(JavaParser.parseClassOrInterfaceType("Thread")),
+                                                        JavaParser.parseClassOrInterfaceType("Thread").getNameAsExpression(),
                                                         "currentThread"
                                                 ),
                                                 "getContextClassLoader"
@@ -140,7 +140,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         tryStmt.getTryBlock()
                 .addStatement(new ReturnStmt(
                         new MethodCallExpr(
-                                new ClassExpr(JavaParser.parseClassOrInterfaceType("Buffer")),
+                                JavaParser.parseClassOrInterfaceType("Buffer").getNameAsExpression(),
                                 "buffer",
                                 new NodeList<>(dataDeclarator.getNameAsExpression())
                         )
@@ -366,7 +366,9 @@ public class GenerateResourceModuleTask extends DefaultTask {
                                 JavaParser.parseClassOrInterfaceType("String"),
                                 "acceptEncoding",
                                 new MethodCallExpr(
-                                        contextParameter.getNameAsExpression(),
+                                        new MethodCallExpr(
+                                                contextParameter.getNameAsExpression(),
+                                                "request"),
                                         "getHeader",
                                         new NodeList<>(
                                                 new FieldAccessExpr(
@@ -409,7 +411,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
 
                 // Generate serverPush Entry
                 BinaryExpr serverPushFullUrlExpression = new BinaryExpr(serverPushBaseUrl.getNameAsExpression(), new StringLiteralExpr(relativeUncompressed), BinaryExpr.Operator.PLUS);
-                Parameter asyncResultParam = new Parameter(new ClassOrInterfaceType().setName(new SimpleName("AyncResult")).setTypeArguments(JavaParser.parseClassOrInterfaceType("HttpServerResponse")), "ar");
+                Parameter asyncResultParam = new Parameter(new ClassOrInterfaceType().setName(new SimpleName("AsyncResult")).setTypeArguments(JavaParser.parseClassOrInterfaceType("HttpServerResponse")), "ar");
 
                 LambdaExpr serverPushHandlerLambda = new LambdaExpr()
                         .setParameters(new NodeList<>(asyncResultParam))
