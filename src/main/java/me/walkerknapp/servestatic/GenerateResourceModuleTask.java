@@ -24,7 +24,6 @@ import org.gradle.api.tasks.InputFiles;
 import org.gradle.api.tasks.OutputDirectory;
 import org.gradle.api.tasks.TaskAction;
 
-import javax.annotation.processing.Generated;
 import java.io.File;
 import java.io.IOException;
 import java.nio.file.Files;
@@ -181,7 +180,6 @@ public class GenerateResourceModuleTask extends DefaultTask {
         ClassOrInterfaceDeclaration moduleClass = moduleCompilationUnit
                 .addClass(generatedClassName())
                 .setPublic(true)
-                .addSingleMemberAnnotation(Generated.class, "\"serve-static-resources\"")
                 .setJavadocComment("Generated class to serve static files from the " + name + " web module.");
 
         MethodDeclaration loadResourceMethod = generateLoadClasspathResourceToBufferMethod(moduleClass);
