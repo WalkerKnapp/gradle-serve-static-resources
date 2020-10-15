@@ -1,4 +1,4 @@
-package com.walker.servestatic;
+package me.walkerknapp.servestatic;
 
 import com.fasterxml.jackson.databind.annotation.JsonAppend;
 import org.gradle.api.file.FileCollection;

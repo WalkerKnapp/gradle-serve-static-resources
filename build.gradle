@@ -2,14 +2,14 @@ plugins {
     id 'java-gradle-plugin'
 }
 
-group 'com.walker'
+group 'me.walkerknapp'
 version '1.0'
 
 gradlePlugin {
     plugins {
         serveStatic {
-            id = 'com.walker.serve-static-resources'
-            implementationClass = 'com.walker.servestatic.ServeStaticPlugin'
+            id = 'me.walkerknapp.serve-static-resources'
+            implementationClass = 'me.walkerknapp.servestatic.ServeStaticPlugin'
         }
     }
 }

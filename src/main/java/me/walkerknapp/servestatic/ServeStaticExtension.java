@@ -1,15 +1,13 @@
-package com.walker.servestatic;
+package me.walkerknapp.servestatic;
 
 import org.gradle.api.NamedDomainObjectContainer;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
-import org.gradle.api.internal.provider.DefaultProperty;
 import org.gradle.api.provider.ListProperty;
 import org.gradle.api.provider.Property;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.List;
 
 public class ServeStaticExtension {
     public final NamedDomainObjectContainer<WebModule> modules;

@@ -1,14 +1,11 @@
-package com.walker.servestatic;
+package me.walkerknapp.servestatic;
 
-import groovy.lang.Closure;
-import org.gradle.api.Action;
 import org.gradle.api.Plugin;
 import org.gradle.api.Project;
 import org.gradle.api.Task;
 import org.gradle.api.tasks.SourceSet;
 import org.gradle.api.tasks.SourceSetContainer;
 import org.gradle.api.tasks.TaskProvider;
-import org.gradle.internal.impldep.org.apache.ivy.core.repository.RepositoryManagementEngine;
 
 import java.io.File;
 import java.util.ArrayList;
