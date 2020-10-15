@@ -9,7 +9,7 @@ import org.gradle.api.tasks.TaskProvider;
 
 import java.io.File;
 import java.util.ArrayList;
-import java.util.List;
+import java.util.Arrays;
 
 public class ServeStaticPlugin implements Plugin<Project> {
     @Override
@@ -44,7 +44,7 @@ public class ServeStaticPlugin implements Plugin<Project> {
                             }
                             moduleTask.setPackageDirectory(packageDir);
                             moduleTask.setWebResources(webModule.getModuleFiles().get());
-                            moduleTask.setEncodings(List.of(extension.contentEncodings.get()));
+                            moduleTask.setEncodings(Arrays.asList(extension.contentEncodings.get()));
                         })));
 
         project.getTasks().register("generateWebModules").configure(task -> {

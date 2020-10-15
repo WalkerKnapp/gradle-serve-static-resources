@@ -6,6 +6,11 @@ plugins {
 group = "me.walkerknapp"
 version = "0.0.1"
 
+java {
+    sourceCompatibility = JavaVersion.VERSION_1_9
+    targetCompatibility = JavaVersion.VERSION_1_9
+}
+
 gradlePlugin {
     plugins {
         register("serveStatic") {
