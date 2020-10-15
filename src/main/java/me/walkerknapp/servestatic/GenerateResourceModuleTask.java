@@ -19,10 +19,7 @@ import io.vertx.ext.web.Router;
 import io.vertx.ext.web.RoutingContext;
 import org.gradle.api.*;
 import org.gradle.api.file.FileCollection;
-import org.gradle.api.tasks.InputDirectory;
-import org.gradle.api.tasks.InputFiles;
-import org.gradle.api.tasks.OutputDirectory;
-import org.gradle.api.tasks.TaskAction;
+import org.gradle.api.tasks.*;
 
 import java.io.File;
 import java.io.IOException;
@@ -69,6 +66,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         this.moduleDirectory = moduleDirectory;
     }
 
+    @Input
     public String getNameProp() {
         return name;
     }
@@ -77,6 +75,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         this.name = name;
     }
 
+    @Input
     public String getSourcePackage() {
         return sourcePackage;
     }
@@ -85,6 +84,7 @@ public class GenerateResourceModuleTask extends DefaultTask {
         this.sourcePackage = sourcePackage;
     }
 
+    @Input
     public List<String> getEncodings() {
         return encodings;
     }
