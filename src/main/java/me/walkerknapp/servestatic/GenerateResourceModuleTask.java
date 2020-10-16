@@ -225,91 +225,89 @@ public class GenerateResourceModuleTask extends DefaultTask {
         // Extension -> Uncompressed path -> Serve Method
         HashMap<String, HashMap<Path, MethodDeclaration>> serveMethodMap = new HashMap<>();
 
-        resourcesMap.forEach((extension, resources) -> {
-            resources.forEach((uncompressedPath, fileEncodings) -> {
-                MethodDeclaration writeMethod = moduleClass
-                        .addMethod(filenameToWriteResponseMethodName(uncompressedPath.getFileName().toString()))
-                        .addModifier(Modifier.PUBLIC, Modifier.STATIC);
-                Parameter resultResponse = writeMethod.addAndGetParameter(HttpServerResponse.class, "result");
-                Parameter acceptEncoding = writeMethod.addAndGetParameter(String.class, "acceptEncoding");
+        resourcesMap.forEach((extension, resources) -> resources.forEach((uncompressedPath, fileEncodings) -> {
+            MethodDeclaration writeMethod = moduleClass
+                    .addMethod(filenameToWriteResponseMethodName(uncompressedPath.getFileName().toString()))
+                    .addModifier(Modifier.PUBLIC, Modifier.STATIC);
+            Parameter resultResponse = writeMethod.addAndGetParameter(HttpServerResponse.class, "result");
+            Parameter acceptEncoding = writeMethod.addAndGetParameter(String.class, "acceptEncoding");
 
-                AtomicReference<String> mimeType = new AtomicReference<>();
-                try {
-                    mimeType.set(Files.probeContentType(uncompressedPath));
-                } catch (IOException e) {
-                    throw new IllegalStateException(e);
-                }
+            AtomicReference<String> mimeType = new AtomicReference<>();
+            try {
+                mimeType.set(Files.probeContentType(uncompressedPath));
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
 
-                // Special case for mjs, since #probeContentType doesn't recognize them.
-                if(extension.equalsIgnoreCase("mjs")) {
-                    mimeType.compareAndSet(null, "text/javascript");
-                }
+            // Special case for mjs, since #probeContentType doesn't recognize them.
+            if(extension.equalsIgnoreCase("mjs")) {
+                mimeType.compareAndSet(null, "text/javascript");
+            }
 
-                AtomicReference<Statement> serveResponseBlock = new AtomicReference<>(new BlockStmt()
-                        .addStatement(new MethodCallExpr(
-                                new MethodCallExpr(
-                                        resultResponse.getNameAsExpression(),
-                                        "putHeader",
-                                        new NodeList<>(
-                                                new FieldAccessExpr(
-                                                        JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
-                                                        "CONTENT_TYPE"),
-                                                new StringLiteralExpr(mimeType.get())
-                                        )
-                                ),
-                                "end",
-                                new NodeList<>(fileEncodings.get(""))
-                        )));
+            AtomicReference<Statement> serveResponseBlock = new AtomicReference<>(new BlockStmt()
+                    .addStatement(new MethodCallExpr(
+                            new MethodCallExpr(
+                                    resultResponse.getNameAsExpression(),
+                                    "putHeader",
+                                    new NodeList<>(
+                                            new FieldAccessExpr(
+                                                    JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                    "CONTENT_TYPE"),
+                                            new StringLiteralExpr(mimeType.get())
+                                    )
+                            ),
+                            "end",
+                            new NodeList<>(fileEncodings.get(""))
+                    )));
 
-                this.encodings.stream().sorted(Collections.reverseOrder())
-                        .forEach(enc -> {
-                            if (fileEncodings.containsKey(enc)) {
-                                // Create new layer for if tree with new content encoding
-                                IfStmt ifLayer = new IfStmt()
-                                        .setCondition(new MethodCallExpr(
-                                                acceptEncoding.getNameAsExpression(),
-                                                "contains",
-                                                new NodeList<>(new StringLiteralExpr(enc))
-                                        ))
-                                        .setElseStmt(serveResponseBlock.get())
-                                        .setThenStmt(new BlockStmt()
-                                                .addStatement(
-                                                        new MethodCallExpr(
-                                                                new MethodCallExpr(
-                                                                        new MethodCallExpr(
-                                                                                resultResponse.getNameAsExpression(),
-                                                                                "putHeader",
-                                                                                new NodeList<>(
-                                                                                        new FieldAccessExpr(
-                                                                                                JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
-                                                                                                "CONTENT_TYPE"
-                                                                                        ),
-                                                                                        new StringLiteralExpr(mimeType.get())
-                                                                                )
-                                                                        ),
-                                                                        "putHeader",
-                                                                        new NodeList<>(
-                                                                                new FieldAccessExpr(
-                                                                                        JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
-                                                                                        "CONTENT_ENCODING"
-                                                                                ),
-                                                                                new StringLiteralExpr(enc)
-                                                                        )
-                                                                ),
-                                                                "end",
-                                                                new NodeList<>(fileEncodings.get(enc))
-                                                        )
-                                                ));
-                                serveResponseBlock.set(ifLayer);
-                            }
-                        });
+            this.encodings.stream().sorted(Collections.reverseOrder())
+                    .forEach(enc -> {
+                        if (fileEncodings.containsKey(enc)) {
+                            // Create new layer for if tree with new content encoding
+                            IfStmt ifLayer = new IfStmt()
+                                    .setCondition(new MethodCallExpr(
+                                            acceptEncoding.getNameAsExpression(),
+                                            "contains",
+                                            new NodeList<>(new StringLiteralExpr(enc))
+                                    ))
+                                    .setElseStmt(serveResponseBlock.get())
+                                    .setThenStmt(new BlockStmt()
+                                            .addStatement(
+                                                    new MethodCallExpr(
+                                                            new MethodCallExpr(
+                                                                    new MethodCallExpr(
+                                                                            resultResponse.getNameAsExpression(),
+                                                                            "putHeader",
+                                                                            new NodeList<>(
+                                                                                    new FieldAccessExpr(
+                                                                                            JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                                                            "CONTENT_TYPE"
+                                                                                    ),
+                                                                                    new StringLiteralExpr(mimeType.get())
+                                                                            )
+                                                                    ),
+                                                                    "putHeader",
+                                                                    new NodeList<>(
+                                                                            new FieldAccessExpr(
+                                                                                    JavaParser.parseClassOrInterfaceType("HttpHeaders").getNameAsExpression(),
+                                                                                    "CONTENT_ENCODING"
+                                                                            ),
+                                                                            new StringLiteralExpr(enc)
+                                                                    )
+                                                            ),
+                                                            "end",
+                                                            new NodeList<>(fileEncodings.get(enc))
+                                                    )
+                                            ));
+                            serveResponseBlock.set(ifLayer);
+                        }
+                    });
 
-                writeMethod.setBody(new BlockStmt().addStatement(serveResponseBlock.get()));
+            writeMethod.setBody(new BlockStmt().addStatement(serveResponseBlock.get()));
 
-                serveMethodMap.computeIfAbsent(extension, ext -> new HashMap<>())
-                        .put(uncompressedPath, writeMethod);
-            });
-        });
+            serveMethodMap.computeIfAbsent(extension, ext -> new HashMap<>())
+                    .put(uncompressedPath, writeMethod);
+        }));
 
         // Setup addRoutes method
         MethodDeclaration addRoutes = moduleClass.addMethod("addRoutes")
